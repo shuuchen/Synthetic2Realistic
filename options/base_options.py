@@ -30,9 +30,10 @@ class BaseOptions():
                                  help='training label for source domain')
         self.parser.add_argument('--lab_target_file', type=str, default='/data/dataset/Image2Depth_SUN_NYU/trainC.txt',
                                  help='training label for target domain')
+        
         self.parser.add_argument('--dataset_mode', type=str, default='paired',
                                  help='chooses how datasets are loaded. [paired| unpaired]')
-        self.parser.add_argument('--loadSize', type=list, default=[640, 192],
+        self.parser.add_argument('--loadSize', type=list, default=[256, 256],#[640, 192],
                                  help='load image into same size [256, 192]|[640, 192]')
         self.parser.add_argument('--flip', action='store_true',
                                  help='if specified, do flip the image for data augmentation')

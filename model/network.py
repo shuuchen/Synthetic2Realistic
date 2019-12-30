@@ -69,7 +69,8 @@ def init_weights(net, init_type='normal', gain=0.02):
             if hasattr(m, 'bias') and m.bias is not None:
                 init.constant_(m.bias.data, 0.0)
         elif classname.find('BatchNorm2d') != -1:
-            init.uniform_(m.weight.data, 1.0, gain)
+            #init.uniform_(m.weight.data, 1.0, gain)
+            init.uniform_(m.weight.data, 0, 1.0)
             init.constant_(m.bias.data, 0.0)
 
     print('initialize network with %s' % init_type)
@@ -618,7 +619,7 @@ class _FeatureDiscriminator(nn.Module):
             use_bias = norm_layer == nn.InstanceNorm2d
 
         model = [
-            nn.Linear(input_nc * 40 * 12, input_nc),
+            nn.Linear(input_nc * 16 * 16, input_nc),
             nonlinearity,
         ]
 
@@ -634,7 +635,7 @@ class _FeatureDiscriminator(nn.Module):
 
     def forward(self, input):
         result = []
-        input = input.view(-1, 512 * 40 * 12)
+        input = input.view(-1, 512 * 16 * 16)
         output = self.model(input)
         result.append(output)
         return result

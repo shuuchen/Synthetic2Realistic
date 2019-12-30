@@ -1,5 +1,8 @@
 import random
-from PIL import Image
+import re
+import numpy as np
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import torchvision.transforms as transforms
 import torch.utils.data as data
 from .image_folder import make_dataset
@@ -20,6 +23,38 @@ class CreateDataset(data.Dataset):
 
         self.transform_augment = get_transform(opt, True)
         self.transform_no_augment = get_transform(opt, False)
+        self.transform_labels = get_transform_label()
+
+    def _read_source_depth(self, f_path, max_depth=1.28):
+        arr = np.load(f_path).astype('float32')
+        arr = np.where(arr >= max_depth, max_depth, arr)
+        arr = arr[:, :, 0] / max_depth
+        arr = arr[::-1, :]
+        return Image.fromarray(arr)
+
+    def _read_target_depth(self, filename, byteorder='>'):
+        """Return image data from a raw PGM file as numpy array.
+        Format specification: http://netpbm.sourceforge.net/doc/pgm.html
+        """
+        with open(filename, 'rb') as f:
+            buffer = f.read()
+        try:
+            header, width, height, maxval = re.search(
+                b"(^P5\s(?:\s*#.*[\r\n])*"
+                b"(\d+)\s(?:\s*#.*[\r\n])*"
+                b"(\d+)\s(?:\s*#.*[\r\n])*"
+                b"(\d+)\s(?:\s*#.*[\r\n]\s)*)", buffer).groups()
+
+            arr = np.frombuffer(buffer,
+                                dtype='u1' if int(maxval) < 256 else byteorder+'u2',
+                                count=int(width)*int(height),
+                                offset=len(header)
+                                ).reshape((int(height), int(width)))
+        except:# AttributeError:
+            #raise ValueError("Not a raw PGM file: '%s'" % filename)
+            arr = np.zeros((256, 256))
+    
+        return Image.fromarray(arr.astype('float32'))
 
     def __getitem__(self, item):
         index = random.randint(0, self.img_target_size - 1)
@@ -44,18 +79,24 @@ class CreateDataset(data.Dataset):
                 lab_target_path = self.lab_target_paths[index]
             else:
                 raise ValueError('Data mode [%s] is not recognized' % self.opt.dataset_mode)
-            lab_source = Image.open(lab_source_path)#.convert('RGB')
-            lab_target = Image.open(lab_target_path)#.convert('RGB')
+            #lab_source = Image.open(lab_source_path)#.convert('RGB')
+            lab_source = self._read_source_depth(lab_source_path)
+            #lab_target = Image.open(lab_target_path)#.convert('RGB')
+            lab_target = self._read_target_depth(lab_target_path)
             lab_source = lab_source.resize([self.opt.loadSize[0], self.opt.loadSize[1]], Image.BICUBIC)
             lab_target = lab_target.resize([self.opt.loadSize[0], self.opt.loadSize[1]], Image.BICUBIC)
 
             img_source, lab_source, scale = paired_transform(self.opt, img_source, lab_source)
             img_source = self.transform_augment(img_source)
-            lab_source = self.transform_no_augment(lab_source)
+            #lab_source = self.transform_no_augment(lab_source)
+            lab_source = self.transform_labels(lab_source)
+            #print(lab_source.size(), '-' * 20)
 
             img_target, lab_target, scale = paired_transform(self.opt, img_target, lab_target)
             img_target = self.transform_no_augment(img_target)
-            lab_target = self.transform_no_augment(lab_target)
+            #lab_target = self.transform_no_augment(lab_target)
+            lab_target = self.transform_labels(lab_target)
+            #print(lab_target.size(), '='*20)
 
             return {'img_source': img_source, 'img_target': img_target,
                     'lab_source': lab_source, 'lab_target': lab_target,
@@ -113,3 +154,6 @@ def get_transform(opt, augment):
     ]
 
     return transforms.Compose(transforms_list)
+
+def get_transform_label():
+    return transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
